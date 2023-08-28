@@ -157,6 +157,7 @@ void ServerOperate::TimeControl(qintptr socketDescriptor) {
         }
 
         qint64 sendSize = socket_sendsize.value(socketDescriptor);
+
         const qint64 read_size = file->read(fileBuffer, 4096);
         //socket->write(fileBuffer,read_size);
         sendFile(fileBuffer, read_size, socketDescriptor);
@@ -167,6 +168,8 @@ void ServerOperate::TimeControl(qintptr socketDescriptor) {
             emit logMessage("文件发送超时，发送终止");
             return;
         }
+
+        socket_sendsize.insert(socketDescriptor, sendSize);
         //避免除零
         if(socket_filesize.value(socketDescriptor) > 0) {
             emit progressChanged(sendSize * 100 / socket_filesize.value(socketDescriptor));
@@ -193,7 +196,9 @@ void ServerOperate::doDislisten() {
     clientSockets.clear();
     socket_timer.clear();
     socket_file.clear();
-
+    socket_filesize.clear();
+    socket_sendsize.clear();
+    socket_fileBuffer.clear();
     QList<qintptr> keyOfFiles = socket_file.keys();
     for (int i = 0; i < keyOfFiles.size(); ++i) {
         doCloseFile(keyOfFiles.at(i));
