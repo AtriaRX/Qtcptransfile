@@ -27,6 +27,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         ClientWidget.h ClientWidget.cpp ClientWidget.ui
         ServerOperate.h ServerOperate.cpp
         ClientOperate.h ClientOperate.cpp
+        socketthread.h socketthread.cpp
 
 
     )

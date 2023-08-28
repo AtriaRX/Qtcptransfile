@@ -12,7 +12,7 @@
 #include <QRunnable>
 
 //服务端socket处理--服务端作为发送
-class ServerOperate : public QObject {
+class ServerOperate : public QTcpServer {
     Q_OBJECT
   public:
     explicit ServerOperate(QObject *parent = nullptr);
@@ -23,7 +23,7 @@ class ServerOperate : public QObject {
 
     void setFilePath(const QString &path);
 
-    bool isListening() const;
+    bool wisListening() const;
 
   signals:
     //操作记录发送到ui显示
@@ -37,26 +37,31 @@ class ServerOperate : public QObject {
 
   public slots:
     //server监听
-    void listen(const QString &address, quint16 port);
+    void doListen(const QString &address, quint16 port);
     //server取消监听
     void dislisten();
     //取消文件传输
-    void cancelFileTransfer();
+    void cancelFileTransfer(qintptr socketDescriptor);
 
   private:
     //初始化
     void initOperate();
-    void TimeControl();
     //把槽对应的实际操作分离出来是为了复用，这样便于组合
     void doDislisten();
-    void doCloseFile();
-    void doCancel();
-    bool isUrl(const QString &fileurl);
-    bool readySendFile(qint64 size);
-    void sendFile(const char *data, int size);
-    void sendData(char type, const QByteArray &data);
-    void operateReceiveData(const QByteArray &data);
+    void doCloseFile(qintptr socketDescriptor);
+    void doCancel(qintptr socketDescriptor);
+    bool isUrl(const QString &fileurl, qintptr socketDescriptor);
+    bool readySendFile(qint64 size, qintptr socketDescriptor);
+    void sendFile(const char *data, int size, qintptr socketDescriptor);
+    void sendData(char type, const QByteArray &data, qintptr socketDescriptor);
+    void operateReceiveData(const QByteArray &data, qintptr socketDescriptor);
 
+    void TimeControl(qintptr socketDescriptor);
+    bool inMap(qintptr socketDescriptor);
+    QTcpSocket* getSocket(qintptr socketDescriptor);
+
+  protected:
+    void incomingConnection(qintptr socketDescriptor) override;
 
   private:
     //用来锁文件路径、监听状态等变量
@@ -66,17 +71,22 @@ class ServerOperate : public QObject {
     //地址和端口
     QString address;
     quint16 port;
-    //套接字，本demo只允许一个客户端连接
-    QTcpServer *server = nullptr;
-    QTcpSocket *socket = nullptr;
+
     //文件操作
-    QFile *file = nullptr;
+    QFile* m_file = nullptr;
+    // 使用队列存储套接字对象
+    QList<QTcpSocket*> clientSockets;
     //发送数据的定时器
-    QTimer *timer = nullptr;
+    QList<QTimer*> timers;
+    // *socketDescriptor - *timer
+    QMap<qintptr, QTimer*> socket_timer;
+    // *socketDescriptor - *file
+    QMap<qintptr, QFile*> socket_file;
     //发送的字节数，因为Qt接口是int64，本来想用无符号类型
-    qint64 sendSize = 0;
+    QMap<qintptr, qint64> socket_sendsize;
     //文件长度
-    qint64 fileSize = 0;
+    QMap<qintptr, qint64> socket_filesize;
+
     //接收缓存，实际操作时还是用char*好点
     QByteArray dataTemp;
 

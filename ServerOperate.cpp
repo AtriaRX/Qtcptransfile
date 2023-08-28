@@ -2,9 +2,10 @@
 
 #include <QApplication>
 #include <QFileInfo>
+#include <QThreadPool>
 
 ServerOperate::ServerOperate(QObject *parent)
-    : QObject(parent) {
+    : QTcpServer(parent) {
     initOperate();
 }
 
@@ -22,148 +23,217 @@ void ServerOperate::setFilePath(const QString &path) {
     fileUrl = path;
 }
 
-bool ServerOperate::isListening() const {
-    QMutexLocker locker(&dataMutex);
-    //这个锁没啥用，毕竟设置不是我控制的，待修改
-    return server->isListening();
+bool ServerOperate::wisListening() const {
+    qDebug() << "operate26";
+    return this->isListening();
 }
 
-void ServerOperate::listen(const QString &address, quint16 port) {
-    if(server->isListening()) {
+void ServerOperate::doListen(const QString &address, quint16 port) {
+    if(this->isListening()) {
         doDislisten();
     }
     //启动监听
-    const bool result = server->listen(QHostAddress(address), port);
+    const bool result = this->listen(QHostAddress(address), port);
+    qDebug() << "op36";
     emit listenStateChanged(result);
     emit logMessage(result ? "服务启动成功" : "服务启动失败");
 }
 
 void ServerOperate::dislisten() {
+    qDebug() << "op42";
     doDislisten();
     emit listenStateChanged(false);
     emit logMessage("服务关闭");
 }
 
-void ServerOperate::cancelFileTransfer() {
+void ServerOperate::cancelFileTransfer(qintptr socketDescriptor) {
     //关闭文件
-    doCancel();
+    doCancel(socketDescriptor);
     //发送停止传输指令
-    sendData(0x04, QByteArray());
+    sendData(0x04, QByteArray(), socketDescriptor);
 }
 
 void ServerOperate::initOperate() {
-    server = new QTcpServer(this);
-    //监听到新的客户端连接请求
-    connect(server, &QTcpServer::newConnection, this, [this] {
-        //如果有新的连接就取出
-        while(server->hasPendingConnections()) {
-            //nextPendingConnection返回下一个挂起的连接作为已连接的QTcpSocket对象
-            QTcpSocket *new_socket = server->nextPendingConnection();
-            emit logMessage(QString("新的客户端连接 [%1:%2]")
-                            .arg(new_socket->peerAddress().toString())
-                            .arg(new_socket->peerPort()));
-            //demo只支持一个连接，多余的释放掉
-//            if(socket){
-//                new_socket->abort();
-//                new_socket->deleteLater();
-//                emit logMessage("目前已有客户端连接，新连接已释放");
-//                continue;
-//            }else{
-            socket = new_socket;
-//            }
-
-            //收到数据，触发readyRead
-            connect(socket, &QTcpSocket::readyRead, [this] {
-                //没有可读的数据就返回
-                if(socket->bytesAvailable() <= 0)
-                    return;
-                //读取数据
-                operateReceiveData(socket->readAll());
-            });
-
-            //连接断开，销毁socket对象
-            connect(socket, &QTcpSocket::disconnected, [this] {
-                emit logMessage(QString("客户端连接已断开 [%1:%2]")
-                                .arg(socket->peerAddress().toString())
-                                .arg(socket->peerPort()));
-                socket->deleteLater();
-                socket = nullptr;
-            });
-            TimeControl();
-        }
-    });
+    qDebug() << "init";
 }
 
-void ServerOperate::TimeControl() {
-    timer = new QTimer(this);
+void ServerOperate::incomingConnection(qintptr socketDescriptor) {
+
+    QTcpSocket *clientSocket = new QTcpSocket();
+    qDebug() << "operate99";
+
+    if (!clientSocket->setSocketDescriptor(socketDescriptor)) {
+        // 处理套接字描述符设置失败的情况
+        qDebug() << "Failed to set socket descriptor:" << clientSocket->errorString();
+        delete clientSocket;
+        return;
+    }
+    qDebug() << socketDescriptor << " " << clientSocket->socketDescriptor();
+    emit logMessage(QString("新的客户端连接 [%1:%2]")
+                    .arg(clientSocket->peerAddress().toString())
+                    .arg(clientSocket->peerPort()));
+    clientSockets.append(clientSocket);
+    addPendingConnection(clientSocket);
+
+    qDebug() << "operate106";
+
+    //收到数据，触发readyRead
+    connect(clientSocket, &QTcpSocket::readyRead, [ = ] {
+        //没有可读的数据就返回
+        if(clientSocket->bytesAvailable() <= 0)
+            return;
+        //读取数据
+        operateReceiveData(clientSocket->readAll(), socketDescriptor);
+    });
+
+
+    qDebug() << "operate131";
+    connect(clientSocket, &QTcpSocket::disconnected, [ = ] {
+        emit logMessage(QString("客户端连接已断开 [%1:%2]")
+                        .arg(clientSocket->peerAddress().toString())
+                        .arg(clientSocket->peerPort()));
+    });
+    qDebug() << "New client connected:" << clientSocket->peerAddress().toString()
+             << clientSocket->peerPort();
+    TimeControl(socketDescriptor);
+}
+
+bool ServerOperate::inMap(qintptr socketDescriptor) {
+    return socket_timer.contains(socketDescriptor);
+}
+
+QTcpSocket* ServerOperate::getSocket(qintptr socketDescriptor) {
+    QTcpSocket *socket = nullptr;
+    for (int i = 0; i < clientSockets.size(); ++i) {
+        if(clientSockets.at(i)->socketDescriptor() == socketDescriptor) {
+            socket = clientSockets.at(i);
+            return socket;
+        }
+    }
+    emit logMessage("列表中不存在Socket对象,发送终止");
+    return nullptr;
+}
+
+
+void ServerOperate::TimeControl(qintptr socketDescriptor) {
+
+    QTimer* timer = nullptr;
+    if(!inMap(socketDescriptor)) {
+        QTimer* timer = new QTimer(this);
+        timers.append(timer);
+        socket_timer[socketDescriptor] = timer;
+        qDebug("op169");
+    }
+//    Q_ASSERT(inMap(socketDescriptor));
+
+    timer = socket_timer[socketDescriptor];
+
+    // socket 对应的 timer* 已经创建
+
+    qDebug() << timer;
 
     //通过定时器来控制数据发送
-    connect(timer, &QTimer::timeout, [this] {
+    connect(timer, &QTimer::timeout, [ = ] {
+
+        QTcpSocket *socket = getSocket(socketDescriptor);
+
+        QFile* file = nullptr;
+
+        file = socket_file.value(socketDescriptor);
+
+        // socket 对应的 file* 已经创建
+
         if(!socket->isValid()) {
-            doCancel();
-            emit logMessage("Socket不可操作，发送终止");
+            doCancel(socketDescriptor);
+            emit logMessage(QString("Socket不可操作，发送终止[%1:%2]")
+                            .arg(socket->peerAddress().toString())
+                            .arg(socket->peerPort()));
             return;
         }
         if(!file || !file->isOpen()) {
-            doCancel();
+            doCancel(socketDescriptor);
 //            emit logMessage("文件操作失败，发送终止");
             return;
         }
 
+        qint64 sendSize = socket_sendsize.value(socketDescriptor);
         const qint64 read_size = file->read(fileBuffer, 4096);
         //socket->write(fileBuffer,read_size);
-        sendFile(fileBuffer, read_size);
+        sendFile(fileBuffer, read_size, socketDescriptor);
         sendSize += read_size;
         file->seek(sendSize);
         if(!socket->waitForBytesWritten()) {
-            doCancel();
+            doCancel(socketDescriptor);
             emit logMessage("文件发送超时，发送终止");
             return;
         }
         //避免除零
-        if(fileSize > 0) {
-            emit progressChanged(sendSize * 100 / fileSize);
+        if(socket_filesize.value(socketDescriptor) > 0) {
+            emit progressChanged(sendSize * 100 / socket_filesize.value(socketDescriptor));
         }
-        if(sendSize >= fileSize) {
-            doCancel();
+        if(sendSize >= socket_filesize.value(socketDescriptor)) {
+            doCancel(socketDescriptor);
             emit logMessage("文件发送完成");
             emit progressChanged(100);
-            sendData(0x03, QByteArray());
+            sendData(0x03, QByteArray(), socketDescriptor);
             return;
         }
     });
 }
 
+
 void ServerOperate::doDislisten() {
     //关闭服务，断开socket连接，释放资源
-    server->close();
-    if(socket) {
-        socket->abort();
+    this->close();
+    for (int i = 0; i < clientSockets.size(); ++i) {
+        if(clientSockets.at(i)) {
+            clientSockets.at(i)->abort();
+        }
     }
-    if(file) {
-        file->close();
+    clientSockets.clear();
+    socket_timer.clear();
+    socket_file.clear();
+
+    QList<qintptr> keyOfFiles = socket_file.keys();
+    for (int i = 0; i < keyOfFiles.size(); ++i) {
+        doCloseFile(keyOfFiles.at(i));
     }
 }
 
-void ServerOperate::doCloseFile() {
+void ServerOperate::doCloseFile(qintptr socketDescriptor) {
+    if(!socket_file.contains(socketDescriptor)) {
+        qDebug() << "不存在该文件，关闭错误";
+        return;
+    }
+    QFile* file = socket_file.value(socketDescriptor);
     if(file) {
         file->close();
         delete file;
         file = nullptr;
     }
+    socket_file.remove(socketDescriptor);
 }
 
-void ServerOperate::doCancel() {
+void ServerOperate::doCancel(qintptr socketDescriptor) {
+    QFile* file = socket_file.value(socketDescriptor);
     if(file) {
         //关闭文件
-        doCloseFile();
+        doCloseFile(socketDescriptor);
     }
 }
 
-bool ServerOperate::isUrl(const QString &fileurl) {
-    if(file) {
-        doCloseFile();
+// 获得当前 socket 传输的 url 及创建相应的 sendSize, fileSize
+bool ServerOperate::isUrl(const QString &fileurl, qintptr socketDescriptor) {
+    QFile* file = nullptr;
+    if(socket_file.contains(socketDescriptor)) {
+        QFile* file = socket_file.value(socketDescriptor);
     }
+    if(file) {
+        doCloseFile(socketDescriptor);
+    }
+    // 现在该套接字对象的 file 已经删除
+
+    socket_sendsize[socketDescriptor] = 0;
     //创建qfile用于写文件
     QString file_path = fileurl;
     //无效路径
@@ -173,28 +243,31 @@ bool ServerOperate::isUrl(const QString &fileurl) {
     }
     file = new QFile(this);
     file->setFileName(file_path);
+    socket_file[socketDescriptor] = file;
+    qDebug() << file_path << file;
     //打开失败
     if(!file->open(QIODevice::ReadOnly)) {
-        doCloseFile();
+        doCloseFile(socketDescriptor);
         emit logMessage("打开文件失败" + file_path);
         return false;
     }
-    fileSize = file->size();
+    qint64 fileSize = file->size();
+    socket_filesize[socketDescriptor] = fileSize;
     return true;
 }
 
-bool ServerOperate::readySendFile(qint64 size) {
+bool ServerOperate::readySendFile(qint64 size, qintptr socketDescriptor) {
     // 若发送回的文件大小和目前的大小不一样，则报错
-    if(fileSize != size) {
+    if(socket_filesize.value(socketDescriptor) != size) {
         emit logMessage("所需文件与目前不一致" + fileUrl);
         emit logMessage(QString("大小为[%1]").arg(size));
         return false;
     }
-    emit logMessage("文件一致，发送" + file->fileName());
     return true;
 }
 
-void ServerOperate::sendFile(const char *data, int size) {
+void ServerOperate::sendFile(const char *data, int size, qintptr socketDescriptor) {
+    QTcpSocket *socket = getSocket(socketDescriptor);
     if(!socket->isValid()) {
         return;
     }
@@ -209,7 +282,7 @@ void ServerOperate::sendFile(const char *data, int size) {
     socket->write(frameTail, 2);
 }
 
-void ServerOperate::sendData(char type, const QByteArray &data) {
+void ServerOperate::sendData(char type, const QByteArray &data, qintptr socketDescriptor) {
     //传输协议
     //帧结构：帧头4+帧长2+帧类型1+帧数据N+帧尾2（没有校验段，懒得写）
     //帧头：4字节定值 0x0F 0xF0 0x00 0xFF
@@ -223,6 +296,7 @@ void ServerOperate::sendData(char type, const QByteArray &data) {
     //- 0x04 取消发送
     //（服务端收到0x01 0x03开始和结束发送两个命令要进行应答，回同样的命令码无数据段）
     //帧尾：2字节定值 0x0D 0x0A
+    QTcpSocket *socket = getSocket(socketDescriptor);
     if(!socket->isValid()) {
         return;
     }
@@ -237,7 +311,7 @@ void ServerOperate::sendData(char type, const QByteArray &data) {
     socket->write(frameTail, 2);
 }
 
-void ServerOperate::operateReceiveData(const QByteArray &data) {
+void ServerOperate::operateReceiveData(const QByteArray &data, qintptr socketDescriptor) {
     static QByteArray frame_head = QByteArray(frameHead, 4);
     //这里只是简单的处理，所以用了QByteArray容器做缓存
     dataTemp += data;
@@ -269,17 +343,18 @@ void ServerOperate::operateReceiveData(const QByteArray &data) {
                 //接收文件 Url
                 //发送文件大小
                 fileUrl = QString::fromUtf8(dataTemp.constData() + 7, data_size);
-                emit showLineUrl(fileUrl);
-                if(isUrl(fileUrl)) {
-                    emit logMessage(QString("存在文件,大小为[%1]").arg(fileSize));
+//                emit showLineUrl(fileUrl);
+                qDebug() << fileUrl;
+                if(isUrl(fileUrl, socketDescriptor)) {
+                    emit logMessage(QString("存在文件,大小为[%1]").arg(socket_filesize.value(socketDescriptor)));
                     //应答
                     char file_size[4] = {0};
-                    const quint64 data_size = fileSize; //有符号转无符号，会被截断
+                    const quint64 data_size = socket_filesize.value(socketDescriptor); //有符号转无符号，会被截断
                     file_size[3] = data_size >> 0 % 0x100;
                     file_size[2] = data_size >> 8 % 0x100;
                     file_size[1] = data_size >> 16 % 0x100;
                     file_size[0] = data_size >> 24;
-                    sendData(0x01, QByteArray(file_size, 4));
+                    sendData(0x01, QByteArray(file_size, 4), socketDescriptor);
                 } else {
                     emit logMessage("搜索服务器文件失败");
                 }
@@ -307,13 +382,14 @@ void ServerOperate::operateReceiveData(const QByteArray &data) {
                 qDebug() << file_size;
 
 
-                qDebug() << fileSize << "  ||  " << file_size;
+                qDebug() << socket_filesize.value(socketDescriptor) << "  ||  " << file_size;
 
-                if(readySendFile(file_size)) {
+                if(readySendFile(file_size, socketDescriptor)) {
+                    QTimer* timer = socket_timer.value(socketDescriptor);
                     timer->start(0);
                     emit logMessage("客户端已准备好发送数据，开始发送" + getFilePath());
                 } else {
-                    cancelFileTransfer();
+                    cancelFileTransfer(socketDescriptor);
                     emit logMessage("准备发送客户端文件失败");
                 }
                 break;
@@ -325,7 +401,7 @@ void ServerOperate::operateReceiveData(const QByteArray &data) {
             }
             break;
             case 0x04: //客户端取消发送
-                doCancel();
+                doCancel(socketDescriptor);
                 emit logMessage("客户端取消发送，发送终止");
                 break;
             default:
