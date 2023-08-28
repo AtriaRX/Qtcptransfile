@@ -36,6 +36,8 @@ class ServerOperate : public QTcpServer {
     void progressChanged(int value);
     // 发送文件 url 给主线程，以显示到 EditLine 上面
     void showLineUrl(const QString &url);
+    // 发送析构信号,qt异步处理会造成重复析构?
+    void deletAll(qintptr socketDescriptor);
 
   public slots:
     //server监听
@@ -44,6 +46,8 @@ class ServerOperate : public QTcpServer {
     void dislisten();
     //取消文件传输
     void cancelFileTransfer(qintptr socketDescriptor);
+
+//    void destructsocket(qintptr socketDescriptor);
 
   private:
     //初始化
@@ -60,6 +64,7 @@ class ServerOperate : public QTcpServer {
     void doCancel(qintptr socketDescriptor);
 
     // 获得当前 socket 传输的 url 及创建相应的 sendSize, fileSize
+    // 后面对接的时候这个要改
     bool isUrl(const QString &fileurl, qintptr socketDescriptor);
 
     // 检测客户端发出的文件大小，若发送回的文件大小和目前的大小不一样，则报错

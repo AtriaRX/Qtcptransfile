@@ -92,6 +92,16 @@ void ServerOperate::incomingConnection(qintptr socketDescriptor) {
         emit logMessage(QString("客户端连接已断开 [%1:%2]")
                         .arg(clientSocket->peerAddress().toString())
                         .arg(clientSocket->peerPort()));
+
+        qDebug() << QString("客户端连接已断开 [%1:%2]")
+                 .arg(clientSocket->peerAddress().toString())
+                 .arg(clientSocket->peerPort());
+        QTimer* timer = socket_timer.value(socketDescriptor);
+        if(timer) {
+            timer->stop();
+            timer->deleteLater();
+            timer = nullptr;
+        }
     });
     qDebug() << "New client connected:" << clientSocket->peerAddress().toString()
              << clientSocket->peerPort();
