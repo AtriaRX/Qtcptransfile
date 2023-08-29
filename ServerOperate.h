@@ -37,7 +37,7 @@ class ServerOperate : public QTcpServer {
     // 发送文件 url 给主线程，以显示到 EditLine 上面
     void showLineUrl(const QString &url);
     // 发送析构信号,qt异步处理会造成重复析构?
-    void deletAll(qintptr socketDescriptor);
+    void closeAll(qintptr socketDescriptor);
 
   public slots:
     //server监听
@@ -46,8 +46,6 @@ class ServerOperate : public QTcpServer {
     void dislisten();
     //取消文件传输
     void cancelFileTransfer(qintptr socketDescriptor);
-
-//    void destructsocket(qintptr socketDescriptor);
 
   private:
     //初始化
@@ -59,6 +57,9 @@ class ServerOperate : public QTcpServer {
 
     // 如果socket对应的文件打开了执行关闭
     void doCloseFile(qintptr socketDescriptor);
+
+    // 如果socket对应的定时器打开了执行关闭
+    void closeTimer(qintptr socketDescriptor);
 
     // 取消传输的时候调用 doCloseFile
     void doCancel(qintptr socketDescriptor);

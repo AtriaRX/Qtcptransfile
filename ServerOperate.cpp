@@ -96,13 +96,9 @@ void ServerOperate::incomingConnection(qintptr socketDescriptor) {
         qDebug() << QString("客户端连接已断开 [%1:%2]")
                  .arg(clientSocket->peerAddress().toString())
                  .arg(clientSocket->peerPort());
-        QTimer* timer = socket_timer.value(socketDescriptor);
-        if(timer) {
-            timer->stop();
-            timer->deleteLater();
-            timer = nullptr;
-        }
+        closeTimer(socketDescriptor);
     });
+
     qDebug() << "New client connected:" << clientSocket->peerAddress().toString()
              << clientSocket->peerPort();
     TimeControl(socketDescriptor);
@@ -196,23 +192,15 @@ void ServerOperate::TimeControl(qintptr socketDescriptor) {
 
 
 void ServerOperate::doDislisten() {
-    //关闭服务，断开socket连接，释放资源
+    //关闭服务
+    //由于 socket 放入 pendingsocket 池, 故不释放避免重复释放
     this->close();
-    for (int i = 0; i < clientSockets.size(); ++i) {
-        if(clientSockets.at(i)) {
-            clientSockets.at(i)->abort();
-        }
-    }
-    clientSockets.clear();
-    socket_timer.clear();
+
     socket_file.clear();
+    socket_timer.clear();
     socket_filesize.clear();
     socket_sendsize.clear();
-    socket_fileBuffer.clear();
-    QList<qintptr> keyOfFiles = socket_file.keys();
-    for (int i = 0; i < keyOfFiles.size(); ++i) {
-        doCloseFile(keyOfFiles.at(i));
-    }
+    clientSockets.clear();
 }
 
 void ServerOperate::doCloseFile(qintptr socketDescriptor) {
@@ -228,6 +216,22 @@ void ServerOperate::doCloseFile(qintptr socketDescriptor) {
     }
     socket_file.remove(socketDescriptor);
 }
+
+void ServerOperate::closeTimer(qintptr socketDescriptor) {
+    if(!socket_timer.contains(socketDescriptor)) {
+        qDebug() << "不存在该定时器，关闭错误";
+        return;
+    }
+    QTimer* timer = socket_timer.value(socketDescriptor);
+    if(timer) {
+        timer->stop();
+        timer->deleteLater();
+        timer = nullptr;
+    }
+    socket_timer.remove(socketDescriptor);
+}
+
+
 
 void ServerOperate::doCancel(qintptr socketDescriptor) {
     QFile* file = socket_file.value(socketDescriptor);
@@ -267,6 +271,7 @@ bool ServerOperate::isUrl(const QString &fileurl, qintptr socketDescriptor) {
         return false;
     }
     qint64 fileSize = file->size();
+    qDebug() << file << fileSize;
     socket_filesize[socketDescriptor] = fileSize;
     return true;
 }
@@ -316,7 +321,7 @@ void ServerOperate::sendData(char type, const QByteArray &data, qintptr socketDe
         return;
     }
     frameHead[6] = type;
-    const quint64 data_size = data.count();
+    const quint64 data_size = data.size();
     frameHead[5] = data_size % 0x100;
     frameHead[4] = data_size / 0x100;
 
@@ -413,11 +418,19 @@ void ServerOperate::operateReceiveData(const QByteArray &data, qintptr socketDes
                 //1成功，0失败
                 const bool result = (dataTemp[7] == (char)0x01);
                 emit logMessage(QString("服务器文件发送完毕，发送") + (result ? "成功" : "失败"));
+
+                // 发送完重置对应的filesize 和 sendsize, 关闭文件
+                socket_filesize.insert(socketDescriptor, 0);
+                socket_sendsize.insert(socketDescriptor, 0);
+                doCancel(socketDescriptor);
             }
             break;
             case 0x04: //客户端取消发送
                 doCancel(socketDescriptor);
                 emit logMessage("客户端取消发送，发送终止");
+                // 重置对应的filesize 和 sendsize
+                socket_filesize.insert(socketDescriptor, 0);
+                socket_sendsize.insert(socketDescriptor, 0);
                 break;
             default:
                 break;

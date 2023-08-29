@@ -81,7 +81,7 @@ bool ClientOperate::startFileTransfer() {
     file->setFileName(savePath);
     //Truncate清掉原本内容
     if(!file->open(QIODevice::WriteOnly)) {
-        emit logMessage("创建文件失败，无法进行接收" + file->fileName());
+        emit logMessage("创建文件失败，(可能已经存在文件)无法进行接收" + file->fileName());
         return false;
     }
     emit logMessage("创建文件成功，准备接收" + file->fileName());
