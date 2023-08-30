@@ -28,6 +28,10 @@ bool ServerOperate::wisListening() const {
     return this->isListening();
 }
 
+QString ServerOperate::fromHash(const QString &fileHash) {
+
+}
+
 void ServerOperate::doListen(const QString &address, quint16 port) {
     if(this->isListening()) {
         doDislisten();
@@ -48,6 +52,7 @@ void ServerOperate::dislisten() {
 
 void ServerOperate::cancelFileTransfer(qintptr socketDescriptor) {
     //关闭文件
+    qDebug() << "op51";
     doCancel(socketDescriptor);
     //发送停止传输指令
     sendData(0x04, QByteArray(), socketDescriptor);
@@ -136,7 +141,7 @@ void ServerOperate::TimeControl(qintptr socketDescriptor) {
 
     // socket 对应的 timer* 已经创建
 
-    qDebug() << timer;
+    qDebug() << "创建定时器:" << timer;
 
     //通过定时器来控制数据发送
     connect(timer, &QTimer::timeout, [ = ] {
@@ -205,7 +210,7 @@ void ServerOperate::doDislisten() {
 
 void ServerOperate::doCloseFile(qintptr socketDescriptor) {
     if(!socket_file.contains(socketDescriptor)) {
-        qDebug() << "不存在该文件，关闭错误";
+        qDebug() << "不存在该文件，关闭错误 [socketDescriptor:" << socketDescriptor;
         return;
     }
     QFile* file = socket_file.value(socketDescriptor);
@@ -219,10 +224,11 @@ void ServerOperate::doCloseFile(qintptr socketDescriptor) {
 
 void ServerOperate::closeTimer(qintptr socketDescriptor) {
     if(!socket_timer.contains(socketDescriptor)) {
-        qDebug() << "不存在该定时器，关闭错误";
+        qDebug() << "不存在该定时器，关闭错误 [socketDescriptor:" << socketDescriptor;
         return;
     }
     QTimer* timer = socket_timer.value(socketDescriptor);
+    qDebug() << "删除定时器:" << timer;
     if(timer) {
         timer->stop();
         timer->deleteLater();
@@ -253,6 +259,8 @@ bool ServerOperate::isUrl(const QString &fileurl, qintptr socketDescriptor) {
     // 现在该套接字对象的 file 已经删除
 
     socket_sendsize[socketDescriptor] = 0;
+
+
     //创建qfile用于写文件
     QString file_path = fileurl;
     //无效路径
@@ -363,8 +371,10 @@ void ServerOperate::operateReceiveData(const QByteArray &data, qintptr socketDes
                 //接收文件 Url
                 //发送文件大小
                 fileUrl = QString::fromUtf8(dataTemp.constData() + 7, data_size);
-//                emit showLineUrl(fileUrl);
-                qDebug() << fileUrl;
+                emit showLineUrl(fileUrl);
+                // fileHash = QString::fromUtf8(dataTemp.constData() + 7, data_size);
+//                fileUrl = fromHash(fileHash);
+
                 if(isUrl(fileUrl, socketDescriptor)) {
                     emit logMessage(QString("存在文件,大小为[%1]").arg(socket_filesize.value(socketDescriptor)));
                     //应答
@@ -374,6 +384,10 @@ void ServerOperate::operateReceiveData(const QByteArray &data, qintptr socketDes
                     file_size[2] = data_size >> 8 % 0x100;
                     file_size[1] = data_size >> 16 % 0x100;
                     file_size[0] = data_size >> 24;
+                    QTimer* timer = nullptr;
+                    if(!inMap(socketDescriptor)) {
+                        qDebug("取消接收之后再接收");
+                    }
                     sendData(0x01, QByteArray(file_size, 4), socketDescriptor);
                 } else {
                     emit logMessage("搜索服务器文件失败");
@@ -399,13 +413,12 @@ void ServerOperate::operateReceiveData(const QByteArray &data, qintptr socketDes
                             uchar(dataTemp[9]) * 0x100 +
                             uchar(dataTemp[10]);
 
-                qDebug() << file_size;
-
-
-                qDebug() << socket_filesize.value(socketDescriptor) << "  ||  " << file_size;
-
+                qDebug() << "Server端filesize:" <<
+                         socket_filesize.value(socketDescriptor) << "  ||  "
+                         << "Client端filesize:" << file_size;
                 if(readySendFile(file_size, socketDescriptor)) {
                     QTimer* timer = socket_timer.value(socketDescriptor);
+                    qDebug() << "开始传数据:" << timer;
                     timer->start(0);
                     emit logMessage("客户端已准备好发送数据，开始发送" + getFilePath());
                 } else {
@@ -429,6 +442,7 @@ void ServerOperate::operateReceiveData(const QByteArray &data, qintptr socketDes
                 doCancel(socketDescriptor);
                 emit logMessage("客户端取消发送，发送终止");
                 // 重置对应的filesize 和 sendsize
+                closeTimer(socketDescriptor);
                 socket_filesize.insert(socketDescriptor, 0);
                 socket_sendsize.insert(socketDescriptor, 0);
                 break;

@@ -97,3 +97,102 @@ D(Sender:ip-port)
 `tcptest` 没用
 
 `socketthread` 是多线程重写事务处理需要用到的类,继承 `QRunnable` 可以重写,最后直接放进线程池 `QThreadPool`
+
+`clientfiletrans` 是对客户端的封装
+
+`serverfiletrans` 是对服务器的封装
+
+
+
+## 封装函数说明
+
+### clientfiletrans类
+
+#### 构造：须传入客户端的ip,port
+
+`explicit ClientFileTrans(QString ip, quint16 port, QObject *parent = nullptr)`
+
+#### 调用析构：释放线程，断开连接释放 socket（最好自动调用吧）
+
+
+
+#### 接口：
+
+开始文件传输
+
+参数: 文件哈希值, 存储路径
+
+`void startTrans(const QString &fileHash, const QString &savePath)`
+
+取消文件传输
+
+`void cancelTrans()`
+
+获取当前传输进度值
+
+`int getProgressValue() const`
+
+
+
+### serverfiletrans 类
+
+#### 构造：须传入服务器的ip,port
+
+`explicit ServerFileTrans(QString ip, quint16 port, QObject *parent = nullptr)`
+
+#### 调用析构：断开连接释放线程（最好自动调用吧）
+
+
+
+#### 接口：
+
+信号 Signal
+
+`void listen(const QString &address, quint16 port)`
+
+`void dislisten()`
+
+
+
+## Operate 函数说明
+
+### Server
+
+#### Slot
+
+| 函数名                                                       | 功能           |
+| ------------------------------------------------------------ | -------------- |
+| void ServerOperate::doListen(const QString &address, quint16 port) [slot] | 启动服务器连接 |
+| void ServerOperate::dislisten() [slot]                       | 下线服务器连接 |
+
+
+
+#### Signal
+
+| 函数名                                                       | 功能           |
+| ------------------------------------------------------------ | -------------- |
+| void ServerOperate::logMessage(const QString &msg) [signal]  | 发送调试信息   |
+| void ServerOperate::progressChanged(int value) [signal]      | 传递所有进度值 |
+| void ServerOperate::listenStateChanged(bool isConnect) [signal] | 传递监听状态   |
+
+### Client
+
+#### Slot
+
+| 函数名                                                       | 功能                 |
+| ------------------------------------------------------------ | -------------------- |
+| void ClientOperate::connectTcp(const QString &address, quint16 port) [slot] | 启动客户端连接       |
+| void ClientOperate::disconnectTcp() [slot]                   | 下线客户端连接       |
+| void ClientOperate::setFilePath(const QString &path) [slot]  | 选择所需文件存储位置 |
+| void ClientOperate::setSavePath(const QString &path) [slot]  | 选择本机存储位置     |
+| bool ClientOperate::startFileTransfer() [slot]               | 开始接收文件         |
+| void ClientOperate::cancelFileTransfer() [slot]              | 客户端取消文件发送   |
+
+#### Signal
+
+
+| 函数名                                     | 功能               |
+| ------------------------------------------ | ------------------ |
+| void ClientOperate::logMessage(const QString &msg) [signal]  | 发送调试信息         |
+| void ClientOperate::progressChanged(int value) [signal]      | 传递进度值           |
+| void ClientOperate::connectStateChanged(bool isConnect) [signal] | 传递监听状态         |

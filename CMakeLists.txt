@@ -28,6 +28,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         ServerOperate.h ServerOperate.cpp
         ClientOperate.h ClientOperate.cpp
         socketthread.h socketthread.cpp
+        clientfiletrans.h clientfiletrans.cpp
+        serverfiletrans.h serverfiletrans.cpp
 
 
     )

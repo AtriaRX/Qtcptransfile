@@ -66,11 +66,11 @@ class ClientOperate : public QObject {
     mutable QMutex dataMutex;
     //所求文件路径
     QString filePath;
-    // 存储文件路径
+    // 存储文件路径,缺少文件名
     QString savePath;
     //地址和端口
-    QString address;
-    quint16 port;
+    QString m_address;
+    quint16 m_port;
     //连接状态
     bool connectState = false;
     //套接字

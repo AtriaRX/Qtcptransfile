@@ -47,6 +47,8 @@ void ClientOperate::connectTcp(const QString &address, quint16 port) {
     if(socket->state() == QAbstractSocket::UnconnectedState) {
         //连接服务器
         socket->connectToHost(QHostAddress(address), port);
+        m_address = address;
+        m_port = port;
     } else {
         emit logMessage("socket->state() != QAbstractSocket::UnconnectedState");
     }
@@ -57,18 +59,29 @@ void ClientOperate::disconnectTcp() {
 }
 
 void ClientOperate::cancelFileTransfer() {
+//    //清除文件
+    if(file->exists() && !file->remove()) {
+        emit logMessage("取消后删除文件失败" + file->fileName());
+    }
     //关闭文件
     doCancel();
+
     //发送停止传输指令
     sendData(0x04, QByteArray());
+    if(socket->state() == QAbstractSocket::ConnectedState) {
+        doDisconnect();
+    }
 }
 
 bool ClientOperate::startFileTransfer() {
     //之前如果打开了先释放
     doCloseFile();
     if(!socket->isValid()) {
-        return false;
+//        qDebug("传输文件前没有socket");
+//        return false;
+        connectTcp(m_address, m_port);
     }
+
 
     QString save_path = getSavePath();
     file = new QFile(this);
@@ -76,12 +89,20 @@ bool ClientOperate::startFileTransfer() {
     if(save_path.isEmpty()) {
         save_path = QApplication::applicationDirPath();
     }
-    setSavePath(save_path + "/" +
-                filePath.right(filePath.length() - 1 - lastSlash));
-    file->setFileName(savePath);
+    file->setFileName(save_path + "/" +
+                      filePath.right(filePath.length() - 1 - lastSlash));
     //Truncate清掉原本内容
+    qDebug() << "文件指针已经创建,path:" << file->fileName();
+
+    // 如果文件已经存在
+    qDebug() << "文件是否存在:" << file->exists();
+//    if(file->exists()) {
+//        if(!file->remove()) {
+//            emit logMessage("已经存在文件,删除文件失败,无法进行接收" + file->fileName());
+//        }
+//    }
     if(!file->open(QIODevice::WriteOnly)) {
-        emit logMessage("创建文件失败，(可能已经存在文件)无法进行接收" + file->fileName());
+        emit logMessage("创建文件失败，无法进行接收" + file->fileName());
         return false;
     }
     emit logMessage("创建文件成功，准备接收" + file->fileName());

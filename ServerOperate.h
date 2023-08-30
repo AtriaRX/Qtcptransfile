@@ -27,6 +27,8 @@ class ServerOperate : public QTcpServer {
     // 把 widget 中 isListening 换成 wisListening, 否则无限递归且和 isListening 冲突
     bool wisListening() const;
 
+    QString fromHash(const QString &fileHash);
+
   signals:
     //操作记录发送到ui显示
     void logMessage(const QString &msg);
@@ -131,6 +133,8 @@ class ServerOperate : public QTcpServer {
     mutable QMutex dataMutex;
     //文件存储路径
     QString fileUrl;
+    // 文件 hash 值
+    QString fileHash;
     //地址和端口
     QString address;
     quint16 port;

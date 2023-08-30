@@ -3,6 +3,10 @@
 #include "ServerWidget.h"
 #include "ClientWidget.h"
 
+#include <QNetworkInterface>
+#include <QHostAddress>
+#include <QDebug>
+
 int main(int argc, char *argv[]) {
     QApplication a(argc, argv);
 
@@ -19,6 +23,19 @@ int main(int argc, char *argv[]) {
     ServerWidget s_w;
     s_w.move(600, 100);
     s_w.show();
+
+
+
+
+//    QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
+//    foreach (QNetworkInterface interface, interfaces) {
+//        QList<QNetworkAddressEntry> addressEntries = interface.addressEntries();
+//        foreach (QNetworkAddressEntry entry, addressEntries) {
+//            if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol && entry.ip() != QHostAddress::LocalHost) {
+//                qDebug() << "IP Address:" << entry.ip().toString();
+//            }
+//        }
+//    }
 
     return a.exec();
 }
