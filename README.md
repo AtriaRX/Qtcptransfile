@@ -108,37 +108,26 @@ D(Sender:ip-port)
 
 ### clientfiletrans类
 
-#### 构造：须传入客户端的ip,port
-
-`explicit ClientFileTrans(QString ip, quint16 port, QObject *parent = nullptr)`
-
 #### 调用析构：释放线程，断开连接释放 socket（最好自动调用吧）
-
-
 
 #### 接口：
 
-开始文件传输
+| 函数名                                                       | 功能                        |
+| ------------------------------------------------------------ | --------------------------- |
+| `explicit ClientFileTrans(QString ip, quint16 port, QObject *parent = nullptr)` | 构造：须传入客户端的ip,port |
+| `void startTrans(const QString &fileHash, const QString &savePath) 参数:文件哈希值, 存储路径` | 开始文件传输                |
+| `void cancelTrans()`                                         | 取消文件传输                |
+| `int getProgressValue() const`                               | 获取当前传输进度值          |
 
-参数: 文件哈希值, 存储路径
 
-`void startTrans(const QString &fileHash, const QString &savePath)`
 
-取消文件传输
-
-`void cancelTrans()`
-
-获取当前传输进度值
-
-`int getProgressValue() const`
+#### 
 
 
 
 ### serverfiletrans 类
 
-#### 构造：须传入服务器的ip,port
 
-`explicit ServerFileTrans(QString ip, quint16 port, QObject *parent = nullptr)`
 
 #### 调用析构：断开连接释放线程（最好自动调用吧）
 
@@ -146,11 +135,13 @@ D(Sender:ip-port)
 
 #### 接口：
 
-信号 Signal
+| 函数名                                                       | 功能                        |
+| ------------------------------------------------------------ | --------------------------- |
+| `explicit ServerFileTrans(QString ip, quint16 port, QObject *parent = nullptr)` | 构造：须传入服务器的ip,port |
+| `void listen(const QString &address, quint16 port) [Signal]` | 发送开始监听信号 |
+| `void dislisten() [Signal]`             | 发送断开监听信号        |
 
-`void listen(const QString &address, quint16 port)`
 
-`void dislisten()`
 
 
 
