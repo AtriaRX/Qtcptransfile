@@ -31,6 +31,12 @@ class ClientOperate : public QObject {
     bool isConnected() const;
     void setConnected(bool connected);
 
+    qint64 getFileSize() const;
+    void setFileSize(qint64 newFileSize);
+
+    qint64 getReceiveSize() const;
+    void setReceiveSize(qint64 newReceiveSize);
+
   signals:
     //操作记录发送到ui显示
     void logMessage(const QString &msg);
@@ -38,6 +44,10 @@ class ClientOperate : public QObject {
     void connectStateChanged(bool isConnect);
     //接收进度0-100
     void progressChanged(int value);
+
+    void fileSizeChanged(qint64 fileSize);
+
+    void receiveSizeChanged(qint64 receiveSize);
 
   public slots:
     //连接
@@ -88,6 +98,8 @@ class ClientOperate : public QObject {
     char frameHead[7] = { 0x0F, (char)0xF0, 0x00, (char)0xFF, 0x00, 0x00, 0x00 };
     //帧尾
     char frameTail[2] = { 0x0D, 0x0A };
+    Q_PROPERTY(qint64 fileSize READ getFileSize WRITE setFileSize NOTIFY fileSizeChanged FINAL)
+    Q_PROPERTY(qint64 receiveSize READ getReceiveSize WRITE setReceiveSize NOTIFY receiveSizeChanged FINAL)
 };
 
 #endif // CLIENTOPERATE_H

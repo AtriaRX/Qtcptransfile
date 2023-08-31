@@ -29,6 +29,8 @@ class ServerOperate : public QTcpServer {
 
     QString fromHash(const QString &fileHash);
 
+    void hash2url(const QString &fileHash, std::function<QString(const QString &fileHash)>& fromHash);
+
   signals:
     //操作记录发送到ui显示
     void logMessage(const QString &msg);

@@ -32,6 +32,11 @@ QString ServerOperate::fromHash(const QString &fileHash) {
 
 }
 
+void ServerOperate::hash2url(const QString &fileHash, std::function<QString (const QString &)> &fromHash) {
+    QString url = fromHash(fileHash);
+    setFilePath(url);
+}
+
 void ServerOperate::doListen(const QString &address, quint16 port) {
     if(this->isListening()) {
         doDislisten();
@@ -372,9 +377,8 @@ void ServerOperate::operateReceiveData(const QByteArray &data, qintptr socketDes
                 //发送文件大小
                 fileUrl = QString::fromUtf8(dataTemp.constData() + 7, data_size);
                 emit showLineUrl(fileUrl);
-                // fileHash = QString::fromUtf8(dataTemp.constData() + 7, data_size);
+//                fileHash = QString::fromUtf8(dataTemp.constData() + 7, data_size);
 //                fileUrl = fromHash(fileHash);
-
                 if(isUrl(fileUrl, socketDescriptor)) {
                     emit logMessage(QString("存在文件,大小为[%1]").arg(socket_filesize.value(socketDescriptor)));
                     //应答

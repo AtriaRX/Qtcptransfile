@@ -201,6 +201,7 @@ void ClientOperate::onReceiveFile(const char *data, qint64 size) {
         emit progressChanged(100);
         return;
     }
+    emit receiveSizeChanged(receiveSize);
 }
 
 void ClientOperate::sendData(char type, const QByteArray &data) {
@@ -279,7 +280,7 @@ void ClientOperate::operateReceiveData(const QByteArray &data) {
                             uchar(dataTemp[9]) * 0x100 +
                             uchar(dataTemp[10]);
                 emit logMessage(QString("接收到的文件大小为[%1]").arg(file_size));
-                fileSize = file_size;
+                setFileSize(file_size);
                 receiveSize = 0;
                 if(readyReceiveFile(file_size)) {
                     emit logMessage("准备好接收服务器文件");
@@ -316,4 +317,28 @@ void ClientOperate::operateReceiveData(const QByteArray &data) {
         //移除处理完的字节
         dataTemp.remove(0, 7 + 2 + data_size);
     }
+}
+
+qint64 ClientOperate::getReceiveSize() const {
+    return receiveSize;
+}
+
+void ClientOperate::setReceiveSize(qint64 newReceiveSize) {
+    if (receiveSize == newReceiveSize) {
+        return;
+    }
+    receiveSize = newReceiveSize;
+    emit receiveSizeChanged(receiveSize);
+}
+
+qint64 ClientOperate::getFileSize() const {
+    return fileSize;
+}
+
+void ClientOperate::setFileSize(qint64 newFileSize) {
+    if (fileSize == newFileSize) {
+        return;
+    }
+    fileSize = newFileSize;
+    emit fileSizeChanged(receiveSize);
 }

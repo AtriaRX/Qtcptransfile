@@ -11,7 +11,7 @@ ServerWidget::ServerWidget(QWidget *parent)
 
     // 使用 QThreadPool 的话都要放到 incomingConnection 里面
     thread = new QThread(this);
-    operate = new ServerOperate;
+    operate = new ServerOperate();
     operate->moveToThread(thread);
     //退出时释放
     connect(thread, &QThread::finished, operate, &ServerOperate::deleteLater);

@@ -1,21 +1,15 @@
 #include "clientfiletrans.h"
 
-#include <QFileDialog>
-
 
 ClientFileTrans::ClientFileTrans(QString ip, quint16 port, QObject *parent)
-    : QObject{parent}, m_ip(ip), m_port(port) {
-    thread = new QThread(this);
-//    operate = new ClientOperate();
-    operate = new ClientOperate;
-    operate->moveToThread(thread);
-    connect(thread, &QThread::finished, operate, &ClientOperate::deleteLater);
-    // 信号槽安全传递
-    if(operate->isConnected()) {
-        emit disconnectTcp();
-    } else {
-        emit connectTcp(m_ip, m_port);
-    }
+        : QObject{parent}, m_ip(ip), m_port(port) {
+//    thread = new QThread(this);
+    operate = new ClientOperate();
+//    operate->moveToThread(thread);
+//    connect(thread, &QThread::finished, operate, &ClientOperate::deleteLater);
+
+    qDebug() << "ClientFileTrans::ClientFileTrans()" << m_ip << m_port;
+
 
     connect(this, &ClientFileTrans::connectTcp, operate, &ClientOperate::connectTcp);
     connect(this, &ClientFileTrans::disconnectTcp, operate, &ClientOperate::disconnectTcp);
@@ -25,25 +19,32 @@ ClientFileTrans::ClientFileTrans(QString ip, quint16 port, QObject *parent)
         progressValue = value;
     });
 
-    // 获取接收大小
 
+    // 获取接收大小
     connect(operate, &ClientOperate::receiveSizeChanged, this, [this](qint64 value) {
         setReceiveSize(value);
     });
 
+
     // 获取文件大小
     connect(operate, &ClientOperate::fileSizeChanged, this, [this](qint64 value) {
-        setReceiveSize(value);
+        fileSize = value;
     });
 
-    // 还有什么加的?
+    // 信号槽安全传递
+    if (operate->isConnected()) {
+        emit disconnectTcp();
+    } else {
+        emit connectTcp(m_ip, m_port);
+    }
 
-    thread->start();
+    // 还有什么加的?
+//    thread->start();
 }
 
 ClientFileTrans::~ClientFileTrans() {
-    thread->quit();
-    thread->wait();
+//    thread->quit();
+//    thread->wait();
 }
 
 
@@ -55,6 +56,8 @@ void ClientFileTrans::startTrans(const QString &fileHash, const QString &savePat
 }
 
 void ClientFileTrans::cancelTrans() {
+    if (isCancel)return;
+    isCancel = true;
     operate->cancelFileTransfer();
 }
 
@@ -75,11 +78,11 @@ void ClientFileTrans::setReceiveSize(qint64 newReceiveSize) {
         return;
     }
     receiveSize = newReceiveSize;
-    emit receiveSizeChanged(receiveSize);
+    emit receiveSizeChanged();
 }
 
-void ClientFileTrans::onSizeChanged(std::function<void (qint64, qint64)> &callback) {
-    connect(this, &ClientFileTrans::receiveSizeChanged, this, [ & ]() {
-        callback(fileSize, receiveSize);
+void ClientFileTrans::onSizeChanged(const std::function<void(qint64, qint64)> &callback) {
+    connect(this, &ClientFileTrans::receiveSizeChanged, this, [=]() {
+        callback(receiveSize, fileSize);
     });
 }

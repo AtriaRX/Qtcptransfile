@@ -2,6 +2,8 @@
 
 #include "ServerWidget.h"
 #include "ClientWidget.h"
+#include "clientfiletrans.h"
+#include "serverfiletrans.h"
 
 #include <QNetworkInterface>
 #include <QHostAddress>
@@ -24,6 +26,11 @@ int main(int argc, char *argv[]) {
     s_w.move(600, 100);
     s_w.show();
 
+    auto cl = new ClientFileTrans("127.0.0.1", 8888);
+
+    cl->onSizeChanged(onSizeChanged( (qint64 r, qint64 f)[] {
+
+    });
 
 
 

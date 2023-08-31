@@ -4,6 +4,7 @@
 ServerFileTrans::ServerFileTrans(QString ip, quint16 port, QObject *parent)
     : QObject{parent}, m_ip(ip), m_port(port) {
     thread = new QThread(this);
+//    operate = new ServerOperate();
     operate = new ServerOperate;
     operate->moveToThread(thread);
     connect(thread, &QThread::finished, operate, &ServerOperate::deleteLater);
