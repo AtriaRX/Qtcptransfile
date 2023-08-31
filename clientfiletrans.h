@@ -11,8 +11,6 @@ class ClientFileTrans : public QObject {
     explicit ClientFileTrans(QString ip, quint16 port, QObject *parent = nullptr);
     ~ClientFileTrans();
 
-    static ClientFileTrans* instance();
-
     // 开始文件传输
     void startTrans(const QString &fileHash, const QString &savePath);
 
@@ -26,20 +24,20 @@ class ClientFileTrans : public QObject {
     qint64 getReceiveSize() const;
     void setReceiveSize(qint64 newReceiveSize);
 
-    void onSizeChanged(std::function<void(qint64, qint64)>& callback);
+    void onSizeChanged(const std::function<void(qint64, qint64)>& callback);
 
   signals:
     //使用信号槽操作线程中的ClientOperate
     void connectTcp(const QString &address, quint16 port);
     void disconnectTcp();
 
-    void receiveSizeChanged(qint64 receiveSize);
+    void receiveSizeChanged();
 
   private:
     //线程
     QThread *thread;
     //server处理放到线程中
-    ClientOperate *operate = nullptr;
+    ClientOperate *operate;
     // 接收方 ip 地址
     QString m_ip;
     // port
@@ -53,6 +51,7 @@ class ClientFileTrans : public QObject {
     qint64 receiveSize = 0;
     Q_PROPERTY(qint64 receiveSize READ getReceiveSize WRITE setReceiveSize NOTIFY receiveSizeChanged FINAL)
     Q_PROPERTY(qint64 fileSize READ getFileSize CONSTANT FINAL)
+    bool isCancel = false;
 };
 
 #endif // CLIENTFILETRANS_H

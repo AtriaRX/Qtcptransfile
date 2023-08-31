@@ -37,7 +37,7 @@ class ClientOperate : public QObject {
     qint64 getReceiveSize() const;
     void setReceiveSize(qint64 newReceiveSize);
 
-  signals:
+signals:
     //操作记录发送到ui显示
     void logMessage(const QString &msg);
     //连接状态改变
@@ -45,11 +45,11 @@ class ClientOperate : public QObject {
     //接收进度0-100
     void progressChanged(int value);
 
-    void fileSizeChanged(qint64 fileSize);
+    void fileSizeChanged(qint64 value);
 
-    void receiveSizeChanged(qint64 receiveSize);
+    void receiveSizeChanged(qint64 value);
 
-  public slots:
+public slots:
     //连接
     void connectTcp(const QString &address, quint16 port);
     //断开连接
